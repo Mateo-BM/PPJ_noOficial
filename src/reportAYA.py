@@ -14,7 +14,8 @@ import os
 import pandas as pd
 from datetime import datetime
 from combine_csv_files import combine_csv_files
-def reportPPJ(user, password, locales,dateFrom,dateUntil,flag):
+from country_constructor import country_constructor as cc
+def reportPPJ(user, password, locales,dateFrom,dateUntil,flag,country):
     
         
     i = None  # Inicializa una variable para contar las iteraciones
@@ -31,7 +32,8 @@ def reportPPJ(user, password, locales,dateFrom,dateUntil,flag):
         "download.default_directory": output_folder,   # Carpeta de destino
         "download.prompt_for_download": False,       # No preguntar por descarga
         "download.directory_upgrade": True,          # Actualizar automáticamente el directorio
-        "safebrowsing.enabled": True                 # Desactivar advertencias de seguridad
+        "safebrowsing.enabled": True,                 # Desactivar advertencias de seguridad
+        "profile.default_content_setting_values.automatic_downloads": 1  # Permitir múltiples descargas    
             }
     driver_path = 'C:\PPJReport\Resources\chromedriver-win64\chromedriver-win64\chromedriver.exe'
     
@@ -70,22 +72,26 @@ def reportPPJ(user, password, locales,dateFrom,dateUntil,flag):
     driver.execute_script("arguments[0].click();", boton_submit)
     # Hace clic en el botón de inicio de sesión
     try:
+        country_details = cc(country)
+        tab_start_xpath = f"//a[@href='{country_details.tab_start}']"
+        tab_report_xpath = f"//a[@href='{country_details.tab_report}']"
+        tab_header_report_xpath = f"//a[@href='{country_details.tab_header_report}']"
         if flag:
 
             
 
             time.sleep(3)  # Espera un tiempo
 
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//a[@href='/pj/app/inicio.php?op=menu1&cy=GT&co=PJ']")))
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, tab_start_xpath)))
             # Espera explícita hasta que aparezca el menú de addons
 
-            tab_start = driver.find_element(By.XPATH, "//a[@href='/pj/app/inicio.php?op=menu1&cy=GT&co=PJ']")
+            tab_start = driver.find_element(By.XPATH, tab_start_xpath)
             tab_start.click()
 
             # Navega a la pestaña donde se encuentran los reportes
 
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//a[contains(@href, 'reporte.php?op=menu&cy=GT&co=PJ')]")))
-            tab_report = driver.find_element(By.XPATH, "//a[contains(@href, 'reporte.php?op=menu&cy=GT&co=PJ')]")
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, tab_report_xpath)))
+            tab_report = driver.find_element(By.XPATH, tab_report_xpath)
             tab_report.click()
 
             # Navega a la pestaña donde se encuentran los productos
@@ -104,27 +110,42 @@ def reportPPJ(user, password, locales,dateFrom,dateUntil,flag):
 
 
             # Iterar sobre los locales
-            for i_Ventas, local_Ventas in enumerate(locales):
-                try:
-                    # Seleccionar el local en el dropdown
-                    select_tienda = Select(driver.find_element(By.ID, 'Tienda'))
-                    select_tienda.select_by_visible_text(local_Ventas)
+            if country == 'Guatemala':
+                for i_Canal, local_Canal in enumerate(locales):
+                    try:
+                        # Seleccionar el local en el dropdown
+                        select_tienda = Select(driver.find_element(By.ID, 'Tienda'))
+                        select_tienda.select_by_visible_text(local_Canal)
 
-                    # Generar el reporte
-                    Button_Report= driver.find_element(By.XPATH, "//button[contains(@class, 'btn-primary')]")
-                    Button_Report.click()
-                    if i_Ventas == len(locales) - 1:
-                        time.sleep(2)
+                        # Generar el reporte
+                        Button_Report= driver.find_element(By.XPATH, "//button[contains(@class, 'btn-primary')]")
+                        driver.execute_script("arguments[0].click();", Button_Report)
+                        if i_Canal == len(locales) - 1:
+                            time.sleep(2)
 
-                except Exception as e:
-                    print(f"No se encontró el local: {local_Ventas}. Error: {e}")
-                    not_founded_locales.append(local_Ventas)
+                    except Exception as e:
+                        print(f"No se encontró el local: {local_Canal}. Error: {e}")
+                        not_founded_locales.append(local_Canal)
+
+                        print(f"Locales no encontrados: {not_founded_locales}")  
+            else:
+                    try:
+                        # Seleccionar el local en el dropdown
+                        select_tienda = Select(driver.find_element(By.ID, 'Tienda'))
+                        select_tienda.select_by_visible_text('Todas')
+
+                        # Generar el reporte
+                        Button_Report= driver.find_element(By.XPATH, "//button[contains(@class, 'btn-primary')]")
+                        driver.execute_script("arguments[0].click();", Button_Report)
+                    except Exception as e:
+                        print(f"Error en opción Todas del pais: {country}")
+                    
                 
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//a[@href='../app/reporte.php?op=menu&cy=GT&co=PJ']")))
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH,tab_header_report_xpath)))
             # Espera explícita hasta que aparezca el menú de addons
 
-            tab_start = driver.find_element(By.XPATH, "//a[@href='../app/reporte.php?op=menu&cy=GT&co=PJ']")
-            tab_start.click()        
+            tab_header_report = driver.find_element(By.XPATH, tab_header_report_xpath)
+            tab_header_report.click()        
                 
             WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//a[text()='TRANSACCIONES POR CANAL']")))
             tab_product = driver.find_element(By.XPATH, "//a[text()='TRANSACCIONES POR CANAL']")
@@ -136,38 +157,52 @@ def reportPPJ(user, password, locales,dateFrom,dateUntil,flag):
             driver.find_element(By.ID, 'DocDate1').send_keys(dateFrom)
             driver.find_element(By.ID, 'DocDate2').clear()
             driver.find_element(By.ID, 'DocDate2').send_keys(dateUntil)
-        
-            for i_Canal, local_Canal in enumerate(locales):
-                try:
-                    # Seleccionar el local en el dropdown
-                    select_tienda = Select(driver.find_element(By.ID, 'Tienda'))
-                    select_tienda.select_by_visible_text(local_Canal)
+            if country == 'Guatemala':
+                for i_Canal, local_Canal in enumerate(locales):
+                    try:
+                        # Seleccionar el local en el dropdown
+                        select_tienda = Select(driver.find_element(By.ID, 'Tienda'))
+                        select_tienda.select_by_visible_text(local_Canal)
 
-                    # Generar el reporte
-                    Button_Report= driver.find_element(By.XPATH, "//button[contains(@class, 'btn-primary')]")
-                    Button_Report.click()
-                    if i_Canal == len(locales) - 1:
-                        time.sleep(2)
+                        # Generar el reporte
+                        Button_Report= driver.find_element(By.XPATH, "//button[contains(@class, 'btn-primary')]")
+                        driver.execute_script("arguments[0].click();", Button_Report)
+                        if i_Canal == len(locales) - 1:
+                            time.sleep(2)
 
-                except Exception as e:
-                    print(f"No se encontró el local: {local_Canal}. Error: {e}")
-                    not_founded_locales.append(local_Canal)
+                    except Exception as e:
+                        print(f"No se encontró el local: {local_Canal}. Error: {e}")
+                        not_founded_locales.append(local_Canal)
 
-                    print(f"Locales no encontrados: {not_founded_locales}")
-            combine_csv_files(output_folder,1)
+                        print(f"Locales no encontrados: {not_founded_locales}")
+                combine_csv_files(output_folder,1)
+                
+            else:
+                    try:
+                        # Seleccionar el local en el dropdown
+                        select_tienda = Select(driver.find_element(By.ID, 'Tienda'))
+                        select_tienda.select_by_visible_text('Todas')
+
+                        # Generar el reporte
+                        Button_Report= driver.find_element(By.XPATH, "//button[contains(@class, 'btn-primary')]")
+                        driver.execute_script("arguments[0].click();", Button_Report)
+                    except Exception as e:
+                        print(f"Error en opción Todas del pais: {country}")
+                    combine_csv_files(output_folder,1)
+            
         else:
             time.sleep(3)  # Espera un tiempo
 
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//a[@href='/pj/app/inicio.php?op=menu1&cy=GT&co=PJ']")))
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, tab_start_xpath)))
             # Espera explícita hasta que aparezca el menú de addons
 
-            tab_start = driver.find_element(By.XPATH, "//a[@href='/pj/app/inicio.php?op=menu1&cy=GT&co=PJ']")
+            tab_start = driver.find_element(By.XPATH, tab_start_xpath)
             tab_start.click()
 
             # Navega a la pestaña donde se encuentran los reportes
 
-            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, "//a[contains(@href, 'reporte.php?op=menu&cy=GT&co=PJ')]")))
-            tab_report = driver.find_element(By.XPATH, "//a[contains(@href, 'reporte.php?op=menu&cy=GT&co=PJ')]")
+            WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.XPATH, tab_report_xpath)))
+            tab_report = driver.find_element(By.XPATH, tab_report_xpath)
             tab_report.click()
 
             # Navega a la pestaña donde se encuentran los productos
@@ -185,25 +220,27 @@ def reportPPJ(user, password, locales,dateFrom,dateUntil,flag):
             driver.find_element(By.ID, 'DocDate2').send_keys(dateUntil)
 
 
-            # Iterar sobre los locales
-            for i, local in enumerate(locales):
+            
+            for i_Canal, local_Canal in enumerate(locales):
                 try:
                     # Seleccionar el local en el dropdown
                     select_tienda = Select(driver.find_element(By.ID, 'Tienda'))
-                    select_tienda.select_by_visible_text(local)
+                    select_tienda.select_by_visible_text(local_Canal)
 
                     # Generar el reporte
                     Button_Report= driver.find_element(By.XPATH, "//button[contains(@class, 'btn-primary')]")
-                    Button_Report.click()
-                    if i == len(locales) - 1:
+                    driver.execute_script("arguments[0].click();", Button_Report)
+                    if i_Canal == len(locales) - 1:
                         time.sleep(2)
 
                 except Exception as e:
-                    print(f"No se encontró el local: {local}. Error: {e}")
-                    not_founded_locales.append(local)
+                    print(f"No se encontró el local: {local_Canal}. Error: {e}")
+                    not_founded_locales.append(local_Canal)
+
+                    print(f"Locales no encontrados: {not_founded_locales}")
+            combine_csv_files(output_folder,0)
                 
-                    print(f"Locales no encontrados: {not_founded_locales}") 
-            combine_csv_files(output_folder,0)    
+
         
                 
     except Exception as e:
